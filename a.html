@@ -1348,6 +1348,7 @@
                 <div>
                     <div class="room-lookup-bar">
                         <button class="nav-btn" onclick="copyRoomCodeValue('EGHJB', event)">D1</button>
+                        <button class="nav-btn" onclick="copyRoomCodeValue('NUTCE', event)">D2</button>
                     </div>
                     <div class="hero-title">CHỌN CÁCH BẠN MUỐN THI ĐẤU</div>
                     <p class="hero-sub">Luyện tay không áp lực, leo hạng toàn cầu, đấu riêng với hội bạn qua mã phòng,
@@ -2751,6 +2752,7 @@
                 const isMe = state.lastResult && r.name === state.lastResult.name && r.ts === state.lastResult.ts;
                 const correct = (typeof r.correctChars === 'number') ? r.correctChars : '—';
                 const wrong = (typeof r.wrongChars === 'number') ? r.wrongChars : '—';
+                const combo = (typeof r.maxCombo === 'number') ? r.maxCombo : '—';
                 const suspectBadge = r.suspect ? ' <span style="font-size:11px;color:#ffb3c0;background:#3a1214;border:1px solid var(--magenta);padding:2px 7px;border-radius:6px;font-weight:700;vertical-align:middle;">⚠ NGHI VẤN</span>' : '';
                 const suspectBox = r.suspect ? `<div style="margin-top:10px;padding:8px 10px;background:#3a1214;border:1px solid var(--magenta);border-radius:8px;color:#ffb3c0;font-size:12px;font-weight:600;">⚠ Nghi vấn gian lận: ${escapeHtml((r.flags || []).join(', '))}</div>` : '';
                 html += `<div class="lb-card ${rankClass} ${isMe ? 'me' : ''} ${deletable ? 'has-del' : ''}" ${r.suspect ? 'style="border-color:var(--magenta)"' : ''}>
@@ -2766,6 +2768,7 @@
         <div><b style="color:var(--cyan)">${r.accuracy}%</b><span>Chính xác</span></div>
         <div><b style="color:var(--lime)">${correct}</b><span>Ký tự đúng</span></div>
         <div><b style="color:var(--magenta)">${wrong}</b><span>Ký tự sai</span></div>
+        <div><b style="color:var(--gold)">${combo}</b><span>Combo</span></div>
       </div>
       ${suspectBox}
     </div>`;
