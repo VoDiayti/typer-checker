@@ -11,16 +11,16 @@
         rel="stylesheet">
     <style>
         :root {
-            --bg: #0a0912;
-            --bg-panel: #141226;
-            --bg-panel-2: #1b1832;
-            --border: #2c2848;
-            --text: #ede9f7;
-            --text-dim: #8d87a8;
-            --lime: #c6ff3d;
-            --magenta: #ff2e92;
-            --cyan: #35e8f2;
-            --gold: #ffc94d;
+            --bg: #f5f3fb;
+            --bg-panel: #ffffff;
+            --bg-panel-2: #f0edf8;
+            --border: #ddd8ec;
+            --text: #1a1826;
+            --text-dim: #6f6889;
+            --lime: #62a800;
+            --magenta: #e01a7a;
+            --cyan: #0bb6c2;
+            --gold: #d99a1f;
             --bronze: #b98a5e;
             --silver: #c9d2dc;
             --diamond: #6ea8ff;
@@ -60,7 +60,7 @@
             justify-content: space-between;
             padding: 18px 32px;
             border-bottom: 1px solid var(--border);
-            background: rgba(10, 9, 18, 0.7);
+            background: rgba(245, 243, 251, 0.75);
             backdrop-filter: blur(6px);
             position: sticky;
             top: 0;
@@ -203,7 +203,7 @@
         main {
             max-width: 960px;
             margin: 0 auto;
-            padding: 44px 24px 100px;
+            padding: 44px 24px 50px;
         }
 
         .screen {
@@ -1223,6 +1223,40 @@
             width: auto;
         }
 
+        #roomListContent {
+            max-height: 60vh;
+            overflow-y: auto;
+            margin: 0 -4px;
+            padding: 0 4px;
+        }
+
+        .room-list-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            margin-bottom: 10px;
+            background: var(--bg-panel-2);
+        }
+
+        .room-list-code {
+            font-family: 'JetBrains Mono';
+            font-weight: 800;
+            font-size: 16px;
+            letter-spacing: 3px;
+            color: var(--gold);
+        }
+
+        .room-list-meta {
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-top: 4px;
+            font-weight: 600;
+        }
+
         .lb-card.top1 {
             border-color: rgba(255, 201, 77, 0.5);
             box-shadow: 0 0 20px rgba(255, 201, 77, 0.08);
@@ -1323,8 +1357,8 @@
 
     <nav>
         <div class="logo">
-            <div class="logo-mark">ST</div>
-            <div class="logo-text">SPRINT TYPING</div>
+            <!-- <div class="logo-mark">ST</div>
+            <div class="logo-text">SPRINT TYPING</div> -->
         </div>
         <div class="nav-links">
             <div class="live-pill"><span class="dot"></span><span id="navLiveCount">0 chiến binh</span></div>
@@ -1332,9 +1366,10 @@
             <button class="nav-btn" data-nav="leaderboard"
                 onclick="forcedRoomCode=null; pendingLbTab='global'; goTo('leaderboard')">Bảng xếp
                 hạng</button>
+            <button class="nav-btn" onclick="openRoomListModal()">📋 Danh sách phòng</button>
             <div class="nav-room-lookup">
-                <input type="text" id="navRoomCodeInput" class="nav-room-input" maxlength="5"
-                    placeholder="Mã phòng" autocomplete="off" spellcheck="false">
+                <input type="text" id="navRoomCodeInput" class="nav-room-input" maxlength="5" placeholder="Mã phòng"
+                    autocomplete="off" spellcheck="false">
                 <button class="nav-btn" data-nav="roomrank" onclick="viewRoomRankFromNav()">🚪 Xem phòng</button>
             </div>
         </div>
@@ -1347,12 +1382,12 @@
             <div class="home-grid">
                 <div>
                     <div class="room-lookup-bar">
-                        <button class="nav-btn" onclick="copyRoomCodeValue('EGHJB', event)">D1</button>
-                        <button class="nav-btn" onclick="copyRoomCodeValue('NUTCE', event)">D2</button>
+                        <button class="nav-btn" onclick="viewRoomRank('EGHJB')">D1 (EGHJB)</button>
+                        <button class="nav-btn" onclick="viewRoomRank('NUTCE')">D2(NUTCE)</button>
                     </div>
-                    <div class="hero-title">CHỌN CÁCH BẠN MUỐN THI ĐẤU</div>
+                    <!-- <div class="hero-title">CHỌN CÁCH BẠN MUỐN THI ĐẤU</div>
                     <p class="hero-sub">Luyện tay không áp lực, leo hạng toàn cầu, đấu riêng với hội bạn qua mã phòng,
-                        hoặc so tốc độ trực tiếp với máy. Tất cả trong một sân đấu.</p>
+                        hoặc so tốc độ trực tiếp với máy. Tất cả trong một sân đấu.</p> -->
 
                     <div class="panel">
                         <div class="name-form">
@@ -1375,25 +1410,25 @@
                                 <div class="mode-card-desc">Gõ đoạn văn ngẫu nhiên, so tài với toàn bộ người chơi trên
                                     bảng xếp hạng chung.</div>
                             </button>
-                            <button type="button" class="mode-card" data-mode="practice"
+                            <!-- <button type="button" class="mode-card" data-mode="practice"
                                 onclick="selectMode('practice')">
                                 <span class="mode-card-icon">🧘</span>
                                 <div class="mode-card-title">LUYỆN TẬP</div>
                                 <div class="mode-card-desc">Không tính giờ áp lực, không lưu điểm. Có thể dùng văn bản
                                     của riêng bạn.</div>
-                            </button>
+                            </button> -->
                             <button type="button" class="mode-card" data-mode="room" onclick="selectMode('room')">
                                 <span class="mode-card-icon">🚪</span>
                                 <div class="mode-card-title">TẠO / VÀO PHÒNG</div>
                                 <div class="mode-card-desc">Tạo phòng riêng cho nhóm bạn, hoặc vào phòng có sẵn bằng mã.
                                 </div>
                             </button>
-                            <button type="button" class="mode-card" data-mode="bot" onclick="selectMode('bot')">
+                            <!-- <button type="button" class="mode-card" data-mode="bot" onclick="selectMode('bot')">
                                 <span class="mode-card-icon">🤖</span>
                                 <div class="mode-card-title">ĐẤU VỚI MÁY</div>
                                 <div class="mode-card-desc">Chọn độ khó và đua tốc độ trực tiếp với bot — ai về đích
                                     trước sẽ thắng.</div>
-                            </button>
+                            </button> -->
                         </div>
 
                         <!-- RANKED CONFIG -->
@@ -1697,6 +1732,18 @@
         </div>
     </div>
 
+    <div class="modal-overlay" id="roomListModal">
+        <div class="modal-box">
+            <div class="modal-title">📋 Danh sách phòng</div>
+            <div id="roomListContent">
+                <div class="loading-note">Đang tải danh sách phòng...</div>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-ghost" onclick="closeRoomListModal()">Đóng</button>
+            </div>
+        </div>
+    </div>
+
     <footer>Dữ liệu bảng xếp hạng (toàn cầu và phòng) được lưu chung và hiển thị công khai cho tất cả người chơi khác.
     </footer>
 
@@ -1870,6 +1917,92 @@
             forcedRoomCode = code;
             pendingLbTab = 'room';
             goTo('leaderboard');
+        }
+
+        // Mở modal liệt kê tất cả các phòng đã được tạo (dựa trên key room_<MÃ>).
+        async function openRoomListModal() {
+            const modal = document.getElementById('roomListModal');
+            modal.classList.add('show');
+            const container = document.getElementById('roomListContent');
+            container.innerHTML = '<div class="loading-note">Đang tải danh sách phòng...</div>';
+            try {
+                const listRes = await Store.list('room_');
+                const keys = (listRes && listRes.keys) ? listRes.keys : [];
+                // Chỉ giữ key ĐỊNH NGHĨA phòng: room_<MÃ>. Bỏ qua room_<MÃ>_r_... (kết quả)
+                // và room_<MÃ>_m_... (thành viên) — mã phòng không chứa dấu gạch dưới.
+                const roomKeys = keys.filter(k => {
+                    const rest = k.slice('room_'.length);
+                    return rest.length > 0 && !rest.includes('_');
+                });
+                if (roomKeys.length === 0) {
+                    container.innerHTML = '<div class="empty-note">Chưa có phòng nào được tạo.</div>';
+                    return;
+                }
+                const rooms = await Promise.all(roomKeys.map(async (k) => {
+                    const code = k.slice('room_'.length);
+                    let info = {};
+                    try {
+                        const res = await Store.get(k);
+                        if (res && res.value) info = JSON.parse(res.value);
+                    } catch (err) { }
+                    return { code, createdAt: info.createdAt || 0, timeLimit: info.timeLimit || null };
+                }));
+                rooms.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                let html = `<div class="empty-note" style="text-align:center;">Tổng cộng: <b id="roomListCount" style="color:var(--gold)">${rooms.length}</b> phòng</div>`;
+                rooms.forEach(r => {
+                    const t = r.createdAt ? formatResultTime(r.createdAt) : '—';
+                    const tl = r.timeLimit ? ('⏱ ' + r.timeLimit + 's') : '⏱ Không giới hạn';
+                    html += `<div class="room-list-item" data-room="${escapeHtml(r.code)}">
+        <div>
+            <div class="room-list-code">${escapeHtml(r.code)}</div>
+            <div class="room-list-meta">🕒 ${t} · ${tl}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+            <button class="btn-ghost btn-small" onclick="openRoomRankNewTab('${escapeHtml(r.code)}')">Xem BXH</button>
+            <button class="lb-del-btn" title="Xoá phòng" onclick="deleteRoom('${escapeHtml(r.code)}', event)">🗑</button>
+        </div>
+      </div>`;
+                });
+                container.innerHTML = html;
+            } catch (err) {
+                container.innerHTML = '<div class="empty-note">Không tải được danh sách phòng.</div>';
+            }
+        }
+        function closeRoomListModal() { document.getElementById('roomListModal').classList.remove('show'); }
+
+        // Xoá một phòng: xoá key định nghĩa room_<MÃ> cùng toàn bộ kết quả (_r_) và
+        // thành viên (_m_) liên quan, rồi gỡ thẻ phòng khỏi UI (không tải lại danh sách).
+        async function deleteRoom(code, ev) {
+            if (ev) ev.stopPropagation();
+            if (!confirm('Xoá phòng ' + code + '? Toàn bộ kết quả và dữ liệu của phòng này sẽ bị xoá vĩnh viễn.')) return;
+            const btn = ev && ev.currentTarget ? ev.currentTarget : null;
+            const item = btn ? btn.closest('.room-list-item') : document.querySelector('.room-list-item[data-room="' + code + '"]');
+            if (btn) { btn.disabled = true; btn.textContent = '…'; }
+            try {
+                const listRes = await Store.list('room_' + code);
+                const keys = (listRes && listRes.keys) ? listRes.keys : [];
+                // Đảm bảo xoá cả chính key room_<MÃ> kể cả khi list không trả về nó.
+                if (keys.indexOf('room_' + code) === -1) keys.push('room_' + code);
+                await Promise.all(keys.map(k => Store.delete(k)));
+            } catch (err) {
+                if (btn) { btn.disabled = false; btn.textContent = '🗑'; }
+                alert('Xoá phòng thất bại. Vui lòng thử lại.');
+                return;
+            }
+            // Gỡ thẻ phòng khỏi DOM và cập nhật số đếm ngay tại chỗ.
+            if (item) item.remove();
+            const remaining = document.querySelectorAll('#roomListContent .room-list-item').length;
+            const countEl = document.getElementById('roomListCount');
+            if (countEl) countEl.textContent = remaining;
+            if (remaining === 0) {
+                document.getElementById('roomListContent').innerHTML = '<div class="empty-note">Chưa có phòng nào được tạo.</div>';
+            }
+        }
+
+        // Mở bảng xếp hạng của một phòng trong TAB MỚI qua deep-link ?room=<MÃ>.
+        function openRoomRankNewTab(code) {
+            const base = location.href.split('#')[0].split('?')[0];
+            window.open(base + '?room=' + encodeURIComponent(code), '_blank');
         }
 
         // Đọc mã phòng từ ô nhập trên header rồi mở bảng xếp hạng phòng đó.
@@ -2730,6 +2863,14 @@
             else loadRoomLeaderboardView();
         }
 
+        // Định dạng thời điểm lưu kết quả (ts) thành chuỗi ngày/giờ ngắn gọn.
+        function formatResultTime(ts) {
+            if (typeof ts !== 'number' || !isFinite(ts)) return '—';
+            const d = new Date(ts);
+            const pad = n => String(n).padStart(2, '0');
+            return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+        }
+
         function renderLbRows(list, opts) {
             const scope = opts && opts.deletable ? opts.scope : null; // 'room' | 'global'
             const medals = ['🥇', '🥈', '🥉'];
@@ -2769,6 +2910,7 @@
         <div><b style="color:var(--lime)">${correct}</b><span>Ký tự đúng</span></div>
         <div><b style="color:var(--magenta)">${wrong}</b><span>Ký tự sai</span></div>
         <div><b style="color:var(--gold)">${combo}</b><span>Combo</span></div>
+        <div><b style="color:var(--text-dim);font-size:13px;">${formatResultTime(r.ts)}</b><span>Thời gian</span></div>
       </div>
       ${suspectBox}
     </div>`;
@@ -2976,6 +3118,9 @@
         document.getElementById('lbModal').addEventListener('click', (e) => {
             if (e.target === document.getElementById('lbModal')) closeLbModal();
         });
+        document.getElementById('roomListModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('roomListModal')) closeRoomListModal();
+        });
 
         async function loadMiniLeaderboard() {
             const container = document.getElementById('miniLeaderboard');
@@ -3002,6 +3147,18 @@
         });
 
         loadMiniLeaderboard();
+
+        // Deep-link: nếu URL có ?room=<MÃ> thì mở thẳng bảng xếp hạng của phòng đó
+        // (dùng cho tab mới khi bấm "Xem BXH" trong danh sách phòng).
+        (function handleRoomDeepLink() {
+            try {
+                const params = new URLSearchParams(location.search);
+                const room = params.get('room');
+                if (room && room.trim()) {
+                    viewRoomRank(room.trim().toUpperCase());
+                }
+            } catch (err) { }
+        })();
     </script>
 </body>
 
