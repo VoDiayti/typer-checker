@@ -1,0 +1,1411 @@
+        const TEXTS = [
+            "Học tập là con đường ngắn nhất dẫn đến thành công, nhưng chỉ khi ta kiên trì bước đi mỗi ngày mà không ngừng nghỉ giữa chừng.",
+            "Buổi sáng mùa thu, sương giăng khắp lối, từng chiếc lá vàng rơi nhẹ nhàng xuống mặt hồ tĩnh lặng như một bức tranh thủy mặc.",
+            "Công nghệ thay đổi cách con người làm việc, học tập và kết nối với nhau, mở ra những cơ hội chưa từng có trong lịch sử.",
+            "Một người bạn tốt giống như ngọn đèn trong đêm tối, luôn soi sáng con đường và nâng đỡ ta những lúc khó khăn nhất.",
+            "Biển cả bao la ôm trọn bầu trời xanh thẳm, từng con sóng vỗ về bờ cát trắng mịn màng dưới ánh nắng chan hòa.",
+            "Kiên trì luyện tập mỗi ngày sẽ biến những điều tưởng chừng không thể thành có thể, đó chính là sức mạnh của thói quen.",
+            "Thành phố về đêm lung linh ánh đèn, dòng người tấp nập ngược xuôi, mang theo bao câu chuyện của một ngày dài đã qua.",
+            "Trí tuệ nhân tạo đang dần trở thành người bạn đồng hành đắc lực, giúp con người giải quyết những bài toán phức tạp nhanh hơn.",
+            "Mưa rơi tí tách trên mái nhà, tiếng nhạc du dương vang lên từ chiếc radio cũ kỹ gợi nhớ về những kỷ niệm xưa cũ.",
+            "Không có con đường nào trải đầy hoa hồng, chỉ có những bước chân bền bỉ mới đưa ta đến đích của ước mơ.",
+            "Núi rừng Tây Bắc trập trùng mây phủ, những thửa ruộng bậc thang uốn lượn như dải lụa vàng óng ánh giữa nắng chiều.",
+            "Mỗi lần vấp ngã là một bài học quý giá, quan trọng là ta có đủ can đảm đứng dậy và bước tiếp hay không."
+        ];
+
+        // ============================================================
+        //  CẤU HÌNH BACKEND CHƠI CHUNG (để mọi người vào phòng bằng mã)
+        // ============================================================
+        //  • Để TRỐNG  -> phòng chỉ đồng bộ khi mọi người mở CÙNG một link
+        //    (khi chạy trên Claude) hoặc cùng một trình duyệt (khi mở file rời).
+        //  • ĐIỀN URL Firebase Realtime Database -> bạn bè ở BẤT KỲ thiết bị nào
+        //    chỉ cần nhập mã phòng là vào chơi chung được.
+        //
+        //  HƯỚNG DẪN LẤY URL (miễn phí, ~1 phút):
+        //   1. Vào https://console.firebase.google.com -> "Add project".
+        //   2. Menu trái: Build > Realtime Database > "Create Database".
+        //   3. Chọn location, chọn "Start in test mode", bấm Enable.
+        //   4. Copy URL hiện ra, dạng: https://ten-du-an-default-rtdb.firebaseio.com
+        //   5. Dán vào giữa hai dấu nháy bên dưới. Xong!
+        //   (Test mode cho phép mọi người đọc/ghi — hợp cho game vui. Muốn kỹ hơn
+        //    thì đặt Rules riêng.)
+        const FIREBASE_URL = "https://chriss-8b42b-default-rtdb.asia-southeast1.firebasedatabase.app/";
+
+        // ---------- STORAGE ADAPTER (tự chọn backend phù hợp) ----------
+        const Store = (function () {
+            const FB = (typeof FIREBASE_URL === 'string' && FIREBASE_URL.trim())
+                ? FIREBASE_URL.trim().replace(/\/+$/, '')
+                : null;
+            const NS = 'sprint_typing';
+
+            // 1) Firebase Realtime Database — chơi chung trên MỌI thiết bị
+            const firebase = {
+                _url(key) { return FB + '/' + NS + '/' + key + '.json'; },
+                async get(key) {
+                    const r = await fetch(this._url(key));
+                    if (!r.ok) return null;
+                    const data = await r.json();
+                    if (data === null || data === undefined) return null;
+                    return { value: (typeof data === 'string') ? data : JSON.stringify(data) };
+                },
+                async set(key, value) {
+                    const r = await fetch(this._url(key), {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(value)
+                    });
+                    return r.ok ? { ok: true } : null;
+                },
+                async delete(key) {
+                    try { await fetch(this._url(key), { method: 'DELETE' }); } catch (err) { }
+                    return { ok: true };
+                },
+                async list(prefix) {
+                    const r = await fetch(FB + '/' + NS + '.json?shallow=true');
+                    if (!r.ok) return { keys: [] };
+                    const data = await r.json();
+                    if (!data) return { keys: [] };
+                    const keys = Object.keys(data).filter(k => k.startsWith(prefix || ''));
+                    return { keys };
+                }
+            };
+
+            // 2) Claude Artifacts storage — chung khi mở cùng một link Claude
+            const claude = {
+                get: (key) => window['storage'].get(key, true),
+                set: (key, value) => window['storage'].set(key, value, true),
+                delete: (key) => window['storage'].delete(key, true),
+                list: (prefix) => window['storage'].list(prefix, true)
+            };
+
+            // 3) localStorage — dự phòng, chỉ trong cùng một trình duyệt
+            const LS = 'sprint_typing::';
+            const local = {
+                async get(key) { const v = localStorage.getItem(LS + key); return v === null ? null : { value: v }; },
+                async set(key, value) { localStorage.setItem(LS + key, value); return { ok: true }; },
+                async delete(key) { localStorage.removeItem(LS + key); return { ok: true }; },
+                async list(prefix) {
+                    const keys = [];
+                    for (let i = 0; i < localStorage.length; i++) {
+                        const k = localStorage.key(i);
+                        if (k && k.startsWith(LS)) {
+                            const real = k.slice(LS.length);
+                            if (real.startsWith(prefix || '')) keys.push(real);
+                        }
+                    }
+                    return { keys };
+                }
+            };
+
+            let backend, mode;
+            if (FB) { backend = firebase; mode = 'firebase'; }
+            else if (typeof window !== 'undefined' && window['storage'] && typeof window['storage'].get === 'function') { backend = claude; mode = 'claude'; }
+            else { backend = local; mode = 'local'; }
+
+            return {
+                mode,
+                crossDevice: (mode === 'firebase'),
+                get: (k) => backend.get(k),
+                set: (k, v) => backend.set(k, v),
+                delete: (k) => backend.delete(k),
+                list: (p) => backend.list(p)
+            };
+        })();
+
+        // ---------- ĐỒNG BỘ ĐỒNG HỒ MÁY CHỦ (chống lệch giờ giữa các thiết bị) ----------
+        // Mỗi máy có giờ hệ thống hơi khác nhau. Ta hỏi giờ chuẩn từ máy chủ Firebase
+        // rồi tính độ lệch, để mọi người dùng CHUNG một mốc thời gian khi bắt đầu trận.
+        let __serverOffset = 0;
+        async function syncServerClock() {
+            if (Store.mode !== 'firebase') { __serverOffset = 0; return; }
+            try {
+                const t0 = Date.now();
+                await Store.set('__clock_ping', { ".sv": "timestamp" });
+                const r = await Store.get('__clock_ping');
+                const t1 = Date.now();
+                if (r && r.value) {
+                    const serverT = parseInt(r.value, 10);
+                    if (!isNaN(serverT)) {
+                        __serverOffset = serverT - ((t0 + t1) / 2);
+                    }
+                }
+            } catch (err) { __serverOffset = 0; }
+        }
+        function serverNow() { return Date.now() + __serverOffset; }
+
+        let state = {
+            playerName: "",
+            mode: "ranked",
+            currentText: "",
+            startTime: null,
+            finished: false,
+            maxCombo: 0,
+            currentCombo: 0,
+            lastResult: null,
+            roomCode: null,
+            roomIsHost: false,
+            botWpm: 42,
+            botTierLabel: "Vàng",
+            botFinishTime: null,
+            timeLimit: null,
+            keystrokes: 0,
+            pasteAttempts: 0,
+            maxJump: 0,
+            prevLen: 0
+        };
+
+        let selectedMode = 'ranked';
+        let liveTimer = null;
+        let pendingLbTab = 'global';
+        // Khi xem bảng xếp hạng của MỘT phòng cố định (vd: nút "Bảng phòng EGHJB" trên
+        // header), ta ép mã phòng này thay vì dựa vào phòng đang tham gia (state.roomCode).
+        let forcedRoomCode = null;
+        function effectiveRoomCode() { return forcedRoomCode || state.roomCode; }
+
+        // Mở thẳng bảng xếp hạng của một phòng bất kỳ theo mã.
+        function viewRoomRank(code) {
+            forcedRoomCode = code;
+            pendingLbTab = 'room';
+            goTo('leaderboard');
+        }
+
+        // Mở modal liệt kê tất cả các phòng đã được tạo (dựa trên key room_<MÃ>).
+        async function openRoomListModal() {
+            const modal = document.getElementById('roomListModal');
+            modal.classList.add('show');
+            const container = document.getElementById('roomListContent');
+            container.innerHTML = '<div class="loading-note">Đang tải danh sách phòng...</div>';
+            try {
+                const listRes = await Store.list('room_');
+                const keys = (listRes && listRes.keys) ? listRes.keys : [];
+                // Chỉ giữ key ĐỊNH NGHĨA phòng: room_<MÃ>. Bỏ qua room_<MÃ>_r_... (kết quả)
+                // và room_<MÃ>_m_... (thành viên) — mã phòng không chứa dấu gạch dưới.
+                const roomKeys = keys.filter(k => {
+                    const rest = k.slice('room_'.length);
+                    return rest.length > 0 && !rest.includes('_');
+                });
+                if (roomKeys.length === 0) {
+                    container.innerHTML = '<div class="empty-note">Chưa có phòng nào được tạo.</div>';
+                    return;
+                }
+                const rooms = await Promise.all(roomKeys.map(async (k) => {
+                    const code = k.slice('room_'.length);
+                    let info = {};
+                    try {
+                        const res = await Store.get(k);
+                        if (res && res.value) info = JSON.parse(res.value);
+                    } catch (err) { }
+                    return { code, createdAt: info.createdAt || 0, timeLimit: info.timeLimit || null };
+                }));
+                rooms.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+                let html = `<div class="empty-note" style="text-align:center;">Tổng cộng: <b id="roomListCount" style="color:var(--gold)">${rooms.length}</b> phòng</div>`;
+                rooms.forEach(r => {
+                    const t = r.createdAt ? formatResultTime(r.createdAt) : '—';
+                    const tl = r.timeLimit ? ('⏱ ' + r.timeLimit + 's') : '⏱ Không giới hạn';
+                    html += `<div class="room-list-item" data-room="${escapeHtml(r.code)}">
+        <div>
+            <div class="room-list-code">${escapeHtml(r.code)}</div>
+            <div class="room-list-meta">🕒 ${t} · ${tl}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0;">
+            <button class="btn-ghost btn-small" onclick="openRoomRankNewTab('${escapeHtml(r.code)}')">Xem BXH</button>
+            <button class="lb-del-btn" title="Xoá phòng" onclick="deleteRoom('${escapeHtml(r.code)}', event)">🗑</button>
+        </div>
+      </div>`;
+                });
+                container.innerHTML = html;
+            } catch (err) {
+                container.innerHTML = '<div class="empty-note">Không tải được danh sách phòng.</div>';
+            }
+        }
+        function closeRoomListModal() { document.getElementById('roomListModal').classList.remove('show'); }
+
+        // Xoá một phòng: xoá key định nghĩa room_<MÃ> cùng toàn bộ kết quả (_r_) và
+        // thành viên (_m_) liên quan, rồi gỡ thẻ phòng khỏi UI (không tải lại danh sách).
+        async function deleteRoom(code, ev) {
+            if (ev) ev.stopPropagation();
+            if (!confirm('Xoá phòng ' + code + '? Toàn bộ kết quả và dữ liệu của phòng này sẽ bị xoá vĩnh viễn.')) return;
+            const btn = ev && ev.currentTarget ? ev.currentTarget : null;
+            const item = btn ? btn.closest('.room-list-item') : document.querySelector('.room-list-item[data-room="' + code + '"]');
+            if (btn) { btn.disabled = true; btn.textContent = '…'; }
+            try {
+                const listRes = await Store.list('room_' + code);
+                const keys = (listRes && listRes.keys) ? listRes.keys : [];
+                // Đảm bảo xoá cả chính key room_<MÃ> kể cả khi list không trả về nó.
+                if (keys.indexOf('room_' + code) === -1) keys.push('room_' + code);
+                await Promise.all(keys.map(k => Store.delete(k)));
+            } catch (err) {
+                if (btn) { btn.disabled = false; btn.textContent = '🗑'; }
+                alert('Xoá phòng thất bại. Vui lòng thử lại.');
+                return;
+            }
+            // Gỡ thẻ phòng khỏi DOM và cập nhật số đếm ngay tại chỗ.
+            if (item) item.remove();
+            const remaining = document.querySelectorAll('#roomListContent .room-list-item').length;
+            const countEl = document.getElementById('roomListCount');
+            if (countEl) countEl.textContent = remaining;
+            if (remaining === 0) {
+                document.getElementById('roomListContent').innerHTML = '<div class="empty-note">Chưa có phòng nào được tạo.</div>';
+            }
+        }
+
+        // Mở bảng xếp hạng của một phòng trong TAB MỚI qua deep-link ?room=<MÃ>.
+        function openRoomRankNewTab(code) {
+            const base = location.href.split('#')[0].split('?')[0];
+            window.open(base + '?room=' + encodeURIComponent(code), '_blank');
+        }
+
+        // Đọc mã phòng từ ô nhập trên header rồi mở bảng xếp hạng phòng đó.
+        function viewRoomRankFromNav() {
+            const input = document.getElementById('navRoomCodeInput');
+            const code = input.value.trim().toUpperCase();
+            if (!code) {
+                input.focus();
+                input.style.borderColor = 'var(--magenta)';
+                setTimeout(() => { input.style.borderColor = ''; }, 800);
+                return;
+            }
+            viewRoomRank(code);
+        }
+
+        // ---------- MODE SELECTION UI ----------
+        function selectMode(mode) {
+            selectedMode = mode;
+            document.querySelectorAll('.mode-card').forEach(c => c.classList.toggle('selected', c.dataset.mode === mode));
+            document.querySelectorAll('.mode-config').forEach(c => c.classList.remove('active'));
+            document.getElementById('config-' + mode).classList.add('active');
+            document.getElementById('globalTimeLimitWrap').style.display = (mode === 'room') ? 'none' : 'block';
+        }
+        selectMode('ranked');
+
+        function switchRoomTab(tab) {
+            document.getElementById('roomTabCreate').classList.toggle('active', tab === 'create');
+            document.getElementById('roomTabJoin').classList.toggle('active', tab === 'join');
+            document.getElementById('roomPanelCreate').classList.toggle('active', tab === 'create');
+            document.getElementById('roomPanelJoin').classList.toggle('active', tab === 'join');
+        }
+
+        function toggleCustom(prefix) {
+            const check = document.getElementById(prefix + 'CustomCheck');
+            document.getElementById(prefix + 'CustomArea').classList.toggle('show', check.checked);
+        }
+
+        function selectBotDiff(btn) {
+            document.querySelectorAll('.bot-diff-btn').forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+            state.botWpm = parseInt(btn.dataset.wpm, 10);
+            state.botTierLabel = btn.dataset.tier;
+        }
+
+        document.getElementById('roomJoinCode').addEventListener('input', (e) => {
+            e.target.value = e.target.value.toUpperCase();
+        });
+
+        // Ô nhập mã phòng trên header: tự viết hoa và Enter để xem bảng xếp hạng phòng.
+        (function () {
+            const navRoomInput = document.getElementById('navRoomCodeInput');
+            navRoomInput.addEventListener('input', (e) => {
+                e.target.value = e.target.value.toUpperCase();
+            });
+            navRoomInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') viewRoomRankFromNav();
+            });
+        })();
+
+        // ---------- NAVIGATION ----------
+        function goTo(screen) {
+            // CHỈ dừng đồng hồ khi RỜI màn gõ. Nếu xóa cả khi VÀO màn gõ thì sẽ tắt nhầm
+            // đồng hồ mà setupRound() vừa bật (trường hợp phòng thi & bấm "Đấu lại").
+            if (screen !== 'typing' && liveTimer) { clearInterval(liveTimer); liveTimer = null; }
+            if (screen !== 'result' && roomAutoSaveTimer) { clearInterval(roomAutoSaveTimer); roomAutoSaveTimer = null; }
+            if (screen !== 'room-lobby') leaveLobbyCleanup();
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+            document.getElementById('screen-' + screen).classList.add('active');
+            document.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
+            const navBtn = document.querySelector('[data-nav="' + screen + '"]');
+            if (navBtn) navBtn.classList.add('active');
+            if (screen === 'leaderboard') {
+                const rc = effectiveRoomCode();
+                document.getElementById('tabRoom').style.display = rc ? 'inline-block' : 'none';
+                if (rc) document.getElementById('tabRoomCode').textContent = rc;
+                switchLbTab(pendingLbTab === 'room' && rc ? 'room' : 'global');
+            }
+            if (screen === 'home') loadMiniLeaderboard();
+        }
+
+        // ---------- TIER SYSTEM ----------
+        function getTier(wpm) {
+            if (wpm < 20) return { key: 'DONG', name: 'ĐỒNG' };
+            if (wpm < 35) return { key: 'BAC', name: 'BẠC' };
+            if (wpm < 50) return { key: 'VANG', name: 'VÀNG' };
+            if (wpm < 65) return { key: 'BACHKIM', name: 'BẠCH KIM' };
+            if (wpm < 80) return { key: 'KIMCUONG', name: 'KIM CƯƠNG' };
+            return { key: 'CAOTHU', name: 'CAO THỦ' };
+        }
+
+        function randomText() { return TEXTS[Math.floor(Math.random() * TEXTS.length)]; }
+
+        function generateRoomCode() {
+            const chars = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
+            let code = '';
+            for (let i = 0; i < 5; i++) code += chars[Math.floor(Math.random() * chars.length)];
+            return code;
+        }
+
+        function escapeHtml(s) {
+            return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
+        // ---------- ROOM LOBBY (chờ chung & bắt đầu đồng loạt) ----------
+        let lobbyPollInterval = null;
+        let lobbyMemberId = null;
+        let countdownInterval = null;
+        let countdownArmed = false;
+
+        // Kích hoạt đếm ngược đồng bộ: dùng serverNow() nên mọi máy bắt đầu cùng một
+        // thời điểm, và chạy 100ms/lần cho mượt (không phụ thuộc vòng poll 2.5s).
+        function armCountdown(startAt, text) {
+            if (countdownArmed) return;
+            countdownArmed = true;
+            if (text) state.currentText = text;
+            const el = document.getElementById('lobbyCountdown');
+            el.style.display = 'block';
+            // Nếu đồng bộ giờ bị lệch bất thường khiến mốc bắt đầu đã "quá hạn" ngay từ
+            // đầu, chuyển sang đếm ngược cục bộ 10s để KHÔNG BAO GIỜ nhảy thẳng vào trận.
+            const useLocal = (startAt - serverNow() <= 0);
+            const localDeadline = Date.now() + 10000;
+            const tick = () => {
+                const remaining = useLocal ? (localDeadline - Date.now()) : (startAt - serverNow());
+                if (remaining <= 0) {
+                    if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+                    countdownArmed = false;
+                    if (state.roomCode) markPlayedRoom(state.roomCode);
+                    leaveLobbyCleanup();
+                    setupRound(state.currentText);
+                    goTo('typing');
+                } else {
+                    el.textContent = '🚀 Trận đấu bắt đầu sau ' + Math.ceil(remaining / 1000) + 's...';
+                }
+            };
+            tick();
+            countdownInterval = setInterval(tick, 100);
+        }
+
+        function randomClientSuffix() {
+            return Math.random().toString(36).slice(2, 8);
+        }
+
+        function leaveLobbyCleanup() {
+            if (lobbyPollInterval) { clearInterval(lobbyPollInterval); lobbyPollInterval = null; }
+            if (lobbyMemberId) {
+                const idToDelete = lobbyMemberId;
+                lobbyMemberId = null;
+                try { Store.delete(idToDelete, true).catch(() => { }); } catch (err) { }
+            }
+        }
+
+        // ---------- KHÓA "MỖI MÁY CHỈ THI 1 LẦN MỖI PHÒNG" ----------
+        // Ghi dấu vào bộ nhớ của chính máy này (localStorage). Đã thi phòng nào thì
+        // máy đó không vào lại phòng đó được nữa, kể cả khi tải lại trang.
+        const PLAYED_PREFIX = 'sprint_typing::played::';
+        function hasPlayedRoom(code) {
+            try { return !!localStorage.getItem(PLAYED_PREFIX + code); } catch (err) { return false; }
+        }
+        function markPlayedRoom(code) {
+            try { localStorage.setItem(PLAYED_PREFIX + code, String(Date.now())); } catch (err) { }
+        }
+
+        // ---------- CẢNH BÁO GIAN LẬN (hiện toast tạm thời) ----------
+        function flashCheatWarn(msg) {
+            let el = document.getElementById('cheatToast');
+            if (!el) {
+                el = document.createElement('div');
+                el.id = 'cheatToast';
+                el.style.cssText = 'position:fixed;top:16px;left:50%;transform:translateX(-50%);background:#3a1214;border:1px solid var(--magenta);color:#ffb3c0;padding:10px 18px;border-radius:10px;font-weight:600;z-index:9999;box-shadow:0 6px 20px rgba(0,0,0,.4);max-width:90%;text-align:center;';
+                document.body.appendChild(el);
+            }
+            el.textContent = msg;
+            el.style.display = 'block';
+            clearTimeout(el._t);
+            el._t = setTimeout(() => { el.style.display = 'none'; }, 1800);
+        }
+
+        async function enterRoomLobby() {
+            goTo('room-lobby');
+            document.getElementById('lobbyRoomCode').textContent = state.roomCode;
+            document.getElementById('lobbyCountdown').style.display = 'none';
+            countdownArmed = false;
+            if (countdownInterval) { clearInterval(countdownInterval); countdownInterval = null; }
+            await syncServerClock();
+            document.getElementById('hostStartBtn').style.display = state.roomIsHost ? 'block' : 'none';
+            document.getElementById('waitingHostNote').style.display = state.roomIsHost ? 'none' : 'block';
+            document.getElementById('lobbyMemberList').innerHTML = '<div class="empty-note">Đang tải...</div>';
+
+            const bnote = document.getElementById('lobbyBackendNote');
+            if (Store.mode === 'firebase') {
+                bnote.innerHTML = '🌐 <b style="color:var(--lime)">Chơi chung mọi thiết bị: ĐANG BẬT</b> — bạn bè ở máy khác chỉ cần nhập mã phòng để vào.';
+            } else if (Store.mode === 'claude') {
+                bnote.innerHTML = '🔗 Mọi người cần mở <b style="color:var(--cyan)">cùng một link này</b> mới vào chung phòng được. Muốn chơi chung mọi thiết bị: điền <b>FIREBASE_URL</b> trong file.';
+            } else {
+                bnote.innerHTML = '⚠️ <b style="color:var(--gold)">Chưa cấu hình backend chung</b> — hiện chỉ chơi chung trên cùng một trình duyệt. Điền <b>FIREBASE_URL</b> trong file để chơi chung mọi thiết bị.';
+            }
+
+            lobbyMemberId = 'room_' + state.roomCode + '_m_' + Date.now() + '_' + randomClientSuffix();
+            try {
+                await Store.set(lobbyMemberId, JSON.stringify({ name: state.playerName, ts: Date.now() }), true);
+            } catch (err) { }
+
+            await pollLobby();
+            if (lobbyPollInterval) clearInterval(lobbyPollInterval);
+            lobbyPollInterval = setInterval(pollLobby, 2500);
+        }
+
+        async function pollLobby() {
+            if (!state.roomCode || !lobbyMemberId) return;
+
+            try {
+                await Store.set(lobbyMemberId, JSON.stringify({ name: state.playerName, ts: Date.now() }), true);
+            } catch (err) { }
+
+            try {
+                const listRes = await Store.list('room_' + state.roomCode + '_m_', true);
+                const keys = (listRes && listRes.keys) ? listRes.keys : [];
+                const members = await Promise.all(keys.map(async (k) => {
+                    try {
+                        const r = await Store.get(k, true);
+                        return (r && r.value) ? JSON.parse(r.value) : null;
+                    } catch (err) { return null; }
+                }));
+                const active = members.filter(Boolean).filter(m => Date.now() - m.ts < 30000);
+                renderLobbyMembers(active);
+            } catch (err) { }
+
+            try {
+                const res = await Store.get('room_' + state.roomCode, true);
+                if (res && res.value) {
+                    const room = JSON.parse(res.value);
+                    if (room.startAt) {
+                        armCountdown(room.startAt, room.text);
+                    }
+                }
+            } catch (err) { }
+        }
+
+        function renderLobbyMembers(members) {
+            document.getElementById('lobbyMemberCount').textContent = members.length;
+            const listEl = document.getElementById('lobbyMemberList');
+            if (members.length === 0) {
+                listEl.innerHTML = '<div class="empty-note">Chưa có ai khác trong phòng...</div>';
+                return;
+            }
+            listEl.innerHTML = members
+                .sort((a, b) => a.ts - b.ts)
+                .map(m => `<div class="mini-lb-row"><div class="mini-name">${escapeHtml(m.name)}</div></div>`)
+                .join('');
+        }
+
+        async function hostStartRoom() {
+            const btn = document.getElementById('hostStartBtn');
+            btn.disabled = true;
+            btn.textContent = 'Đang khởi động...';
+            try {
+                await syncServerClock();
+                const res = await Store.get('room_' + state.roomCode, true);
+                let room = (res && res.value) ? JSON.parse(res.value) : { text: state.currentText, timeLimit: state.timeLimit, createdAt: Date.now() };
+                room.startAt = serverNow() + 10000;
+                await Store.set('room_' + state.roomCode, JSON.stringify(room), true);
+                armCountdown(room.startAt, room.text);
+            } catch (err) {
+                console.error('Host start error:', err);
+                btn.disabled = false;
+                btn.textContent = '🚀 Bắt đầu trận cho cả phòng';
+            }
+        }
+
+        // ---------- START FLOW ----------
+        function parseTimeLimit(rawValue) {
+            const n = parseInt(rawValue, 10);
+            if (isNaN(n) || n <= 0) return null;
+            return Math.min(600, Math.max(5, n));
+        }
+
+        async function beginSelectedMode() {
+            const nameInput = document.getElementById('playerNameInput');
+            const name = nameInput.value.trim();
+            if (!name) {
+                nameInput.focus();
+                nameInput.style.borderColor = 'var(--magenta)';
+                setTimeout(() => nameInput.style.borderColor = '', 800);
+                return;
+            }
+            state.playerName = name;
+            state.mode = selectedMode;
+            state.roomCode = null;
+            state.roomIsHost = false;
+            state.timeLimit = null;
+            forcedRoomCode = null;
+
+            if (selectedMode === 'ranked') {
+                state.timeLimit = parseTimeLimit(document.getElementById('timeLimitInput').value);
+                goTo('typing');
+                setupRound(randomText());
+                return;
+            }
+
+            if (selectedMode === 'practice') {
+                const useCustom = document.getElementById('practiceCustomCheck').checked;
+                const customVal = document.getElementById('practiceCustomText').value.trim();
+                const text = (useCustom && customVal.length >= 20) ? customVal : randomText();
+                state.timeLimit = parseTimeLimit(document.getElementById('timeLimitInput').value);
+                goTo('typing');
+                setupRound(text);
+                return;
+            }
+
+            if (selectedMode === 'bot') {
+                const useCustom = document.getElementById('botCustomCheck').checked;
+                const customVal = document.getElementById('botCustomText').value.trim();
+                const text = (useCustom && customVal.length >= 20) ? customVal : randomText();
+                state.timeLimit = parseTimeLimit(document.getElementById('timeLimitInput').value);
+                goTo('typing');
+                setupRound(text);
+                return;
+            }
+
+            if (selectedMode === 'room') {
+                const isCreateTab = document.getElementById('roomPanelCreate').classList.contains('active');
+                if (isCreateTab) {
+                    const useCustom = document.getElementById('roomCustomCheck').checked;
+                    const customVal = document.getElementById('roomCustomText').value.trim();
+                    const text = (useCustom && customVal.length >= 20) ? customVal : randomText();
+                    let timeLimit = parseTimeLimit(document.getElementById('roomTimeLimitInput').value);
+                    if (timeLimit === null) {
+                        // Phòng thi LUÔN cần đồng hồ đếm ngược. Nếu host để trống, tự đặt giới hạn
+                        // theo độ dài đoạn văn (đủ gõ ở tốc độ ~20 WPM), tối thiểu 30 giây.
+                        timeLimit = Math.max(30, Math.ceil((text.length / 5) / 20 * 60));
+                    }
+                    const code = generateRoomCode();
+                    state.roomCode = code;
+                    state.roomIsHost = true;
+                    state.timeLimit = timeLimit;
+                    state.currentText = text;
+                    try {
+                        const ok = await Store.set('room_' + code, JSON.stringify({ text, timeLimit, createdAt: Date.now(), startAt: null }), true);
+                        if (ok === null && Store.mode === 'firebase') {
+                            alert('Không kết nối được tới backend chung (Firebase). Kiểm tra lại FIREBASE_URL và luật (Rules) của Realtime Database.');
+                            return;
+                        }
+                    } catch (err) {
+                        console.error('Room create error:', err);
+                        alert('Không tạo được phòng: ' + (err && err.message ? err.message : 'lỗi mạng') + '. Kiểm tra lại FIREBASE_URL trong file.');
+                        return;
+                    }
+                    enterRoomLobby();
+                } else {
+                    const codeInput = document.getElementById('roomJoinCode');
+                    const code = codeInput.value.trim().toUpperCase();
+                    const errBox = document.getElementById('roomJoinError');
+                    errBox.classList.remove('show');
+                    if (code.length < 5) {
+                        errBox.textContent = 'Nhập đủ mã phòng 5 ký tự.';
+                        errBox.classList.add('show');
+                        return;
+                    }
+                    let room = null;
+                    try {
+                        const res = await Store.get('room_' + code, true);
+                        if (res && res.value) room = JSON.parse(res.value);
+                    } catch (err) { room = null; }
+                    if (!room) {
+                        errBox.textContent = 'Không tìm thấy phòng với mã này. Kiểm tra lại nhé.';
+                        errBox.classList.add('show');
+                        return;
+                    }
+                    if (hasPlayedRoom(code)) {
+                        errBox.textContent = 'Máy này đã tham gia phòng này rồi — mỗi máy chỉ được thi 1 lần.';
+                        errBox.classList.add('show');
+                        return;
+                    }
+                    state.roomCode = code;
+                    state.roomIsHost = false;
+                    state.timeLimit = room.timeLimit || null;
+                    state.currentText = room.text;
+                    enterRoomLobby();
+                }
+                return;
+            }
+        }
+
+
+        // ---------- ROUND SETUP ----------
+        function formatSeconds(sec) {
+            return Math.max(0, sec).toFixed(1) + 's';
+        }
+
+        function setupRound(forcedText) {
+            state.currentText = forcedText || randomText();
+            // Chế độ phòng thi: đồng hồ chạy NGAY khi vào trận (sau khi đếm ngược xong),
+            // không chờ gõ ký tự đầu — để mọi người thi cùng một mốc thời gian.
+            state.startTime = (state.mode === 'room') ? Date.now() : null;
+            state.finished = false;
+            state.maxCombo = 0;
+            state.currentCombo = 0;
+            state.keystrokes = 0;
+            state.pasteAttempts = 0;
+            state.maxJump = 0;
+            state.prevLen = 0;
+
+            renderText("");
+            document.getElementById('statTime').textContent = state.timeLimit ? formatSeconds(state.timeLimit) : '0.0s';
+            document.getElementById('statWpm').textContent = '0 WPM';
+            document.getElementById('statAcc').textContent = '100%';
+            document.getElementById('comboCount').textContent = '0';
+            const bar = document.getElementById('comboBar');
+            bar.style.width = '0%';
+            bar.classList.remove('break');
+            const input = document.getElementById('hiddenInput');
+            input.value = "";
+            input.readOnly = false;
+
+            const raceTrack = document.getElementById('raceTrack');
+            if (state.mode === 'bot') {
+                raceTrack.style.display = 'block';
+                state.botFinishTime = (state.currentText.length / 5) / state.botWpm * 60;
+                document.getElementById('raceMe').style.width = '0%';
+                document.getElementById('raceBot').style.width = '0%';
+            } else {
+                raceTrack.style.display = 'none';
+            }
+
+            const hint = document.getElementById('focusHint');
+            if (hint) {
+                hint.textContent = (state.mode === 'room')
+                    ? '⏱ Đồng hồ đã chạy — gõ ngay để không mất thời gian!'
+                    : 'Nhấp vào đoạn văn rồi gõ theo — đồng hồ bắt đầu khi bạn gõ ký tự đầu tiên.';
+            }
+            // Phòng thi: ẩn nút "Đấu lại" ở header để không gõ lại giữa chừng.
+            const headerReplay = document.getElementById('headerReplayBtn');
+            if (headerReplay) headerReplay.style.display = (state.mode === 'room') ? 'none' : 'inline-block';
+
+            renderModeBanner();
+
+            if (liveTimer) clearInterval(liveTimer);
+            liveTimer = setInterval(updateLiveStats, 100);
+            setTimeout(() => input.focus(), 50);
+        }
+
+        function renderModeBanner() {
+            const banner = document.getElementById('modeBanner');
+            const timeTag = state.timeLimit ? (' · ⏱ Giới hạn ' + state.timeLimit + 's') : '';
+            if (state.mode === 'ranked') {
+                banner.innerHTML = '🏆 <b>Đấu bảng xếp hạng toàn cầu</b>' + timeTag;
+            } else if (state.mode === 'practice') {
+                banner.innerHTML = '🧘 <b>Luyện tập</b> — kết quả sẽ không được lưu' + timeTag;
+            } else if (state.mode === 'bot') {
+                banner.innerHTML = '🤖 <b>Đấu với máy</b> · Đối thủ: ' + state.botTierLabel + ' (~' + state.botWpm + ' WPM)' + timeTag;
+            } else if (state.mode === 'room') {
+                banner.innerHTML = '🚪 <b>Phòng ' + state.roomCode + '</b>' + (state.roomIsHost ? ' · Bạn là chủ phòng — mời bạn bè bằng mã này!' : '') + timeTag +
+                    ' <button class="copy-btn" onclick="copyRoomCode(event)">📋 Sao chép mã</button>';
+            }
+        }
+
+        function copyRoomCode(ev) {
+            if (!state.roomCode) return;
+            const done = () => {
+                const btn = ev && ev.target ? ev.target : null;
+                if (btn) { const old = btn.textContent; btn.textContent = '✓ Đã chép mã!'; setTimeout(() => { btn.textContent = old; }, 1500); }
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(state.roomCode).then(done).catch(() => fallbackCopy(state.roomCode, done));
+            } else {
+                fallbackCopy(state.roomCode, done);
+            }
+        }
+        // Copy một mã phòng bất kỳ (dùng cho nút D1 trên header).
+        function copyRoomCodeValue(code, ev) {
+            if (!code) return;
+            const done = () => {
+                const btn = ev && ev.target ? ev.target : null;
+                if (btn) { const old = btn.textContent; btn.textContent = '✓ Đã chép'; setTimeout(() => { btn.textContent = old; }, 1500); }
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(code).then(done).catch(() => fallbackCopy(code, done));
+            } else {
+                fallbackCopy(code, done);
+            }
+        }
+
+        function fallbackCopy(text, cb) {
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+                document.body.appendChild(ta); ta.select();
+                document.execCommand('copy'); document.body.removeChild(ta);
+                if (cb) cb();
+            } catch (err) { }
+        }
+
+        function restartRound() {
+            if (state.mode === 'ranked') { setupRound(randomText()); }
+            else if (state.mode === 'practice' || state.mode === 'bot') { setupRound(state.currentText); }
+            else if (state.mode === 'room') { setupRound(state.currentText); }
+            goTo('typing');
+        }
+
+        function focusInput() { document.getElementById('hiddenInput').focus(); }
+
+        function renderText(typed) {
+            const target = state.currentText;
+            let html = "";
+            for (let i = 0; i < target.length; i++) {
+                const ch = target[i] === " " ? " " : escapeHtml(target[i]);
+                if (i < typed.length) {
+                    html += typed[i] === target[i]
+                        ? '<span class="ch-correct">' + ch + '</span>'
+                        : '<span class="ch-wrong">' + ch + '</span>';
+                } else if (i === typed.length) {
+                    html += '<span class="ch-current">' + ch + '</span>';
+                } else {
+                    html += ch;
+                }
+            }
+            const panel = document.getElementById('textPanel');
+            panel.innerHTML = html;
+
+            const currentEl = panel.querySelector('.ch-current') || panel.lastElementChild;
+            if (currentEl) {
+                const targetScroll = currentEl.offsetTop - (panel.clientHeight / 2) + (currentEl.offsetHeight / 2);
+                panel.scrollTop = Math.max(0, targetScroll);
+            }
+        }
+
+        // ---------- CHỐNG GIAN LẬN: chặn dán/thả, đếm phím bấm ----------
+        (function () {
+            const hi = document.getElementById('hiddenInput');
+            hi.addEventListener('paste', (e) => {
+                e.preventDefault();
+                if (!state.finished) { state.pasteAttempts++; flashCheatWarn('⚠ Không được dán văn bản — hãy tự gõ!'); }
+            });
+            hi.addEventListener('drop', (e) => {
+                e.preventDefault();
+                if (!state.finished) { state.pasteAttempts++; flashCheatWarn('⚠ Không được kéo-thả văn bản vào!'); }
+            });
+            hi.addEventListener('keydown', (e) => {
+                if (state.finished) return;
+                // Chặn dán bằng phím tắt Ctrl/Cmd+V
+                if ((e.ctrlKey || e.metaKey) && (e.key === 'v' || e.key === 'V')) {
+                    e.preventDefault(); state.pasteAttempts++; flashCheatWarn('⚠ Không được dán văn bản — hãy tự gõ!'); return;
+                }
+                // Đếm MỌI phím thật (kể cả phím tổ hợp của bộ gõ tiếng Việt) trừ phím bổ trợ.
+                // Đếm rộng để KHÔNG báo nhầm người gõ tiếng Việt có dấu.
+                const mods = ['Shift', 'Control', 'Alt', 'Meta', 'CapsLock', 'Tab', 'Escape'];
+                if (!e.ctrlKey && !e.metaKey && !e.altKey && !mods.includes(e.key)) state.keystrokes++;
+            });
+        })();
+
+        document.getElementById('hiddenInput').addEventListener('input', (e) => {
+            if (state.finished) return;
+            const value = e.target.value;
+            const target = state.currentText;
+
+            // Lớp dự phòng: một số đường dán/thả lọt qua sẽ có inputType đặc trưng.
+            if (e.inputType === 'insertFromPaste' || e.inputType === 'insertFromDrop') {
+                state.pasteAttempts++; flashCheatWarn('⚠ Không được dán văn bản — hãy tự gõ!');
+            }
+
+            // Phát hiện nhảy ký tự bất thường (dán/tự động điền thường thêm nhiều ký tự
+            // cùng lúc, trong khi gõ tay chỉ thêm 1 ký tự mỗi lần).
+            const delta = value.length - state.prevLen;
+            if (delta > state.maxJump) state.maxJump = delta;
+            state.prevLen = value.length;
+
+            if (state.startTime === null && value.length > 0) {
+                state.startTime = Date.now();
+            }
+
+            if (value.length > 0) {
+                const lastIdx = value.length - 1;
+                if (value[lastIdx] === target[lastIdx]) {
+                    state.currentCombo++;
+                    if (state.currentCombo > state.maxCombo) state.maxCombo = state.currentCombo;
+                    const bar = document.getElementById('comboBar');
+                    bar.classList.remove('break');
+                    bar.style.width = Math.min(100, state.currentCombo * 4) + '%';
+                } else {
+                    state.currentCombo = 0;
+                    const bar = document.getElementById('comboBar');
+                    bar.classList.add('break');
+                    bar.style.width = '100%';
+                    setTimeout(() => { bar.style.width = '0%'; bar.classList.remove('break'); }, 200);
+                }
+            }
+            document.getElementById('comboCount').textContent = state.currentCombo;
+
+            renderText(value);
+
+            if (state.mode === 'bot' && state.startTime) {
+                document.getElementById('raceMe').style.width = Math.min(100, (value.length / target.length) * 100) + '%';
+            }
+
+            if (value.length >= target.length) {
+                finishRound(value);
+            }
+        });
+
+        function updateLiveStats() {
+            if (state.startTime === null || state.finished) return;
+            const elapsedSec = (Date.now() - state.startTime) / 1000;
+
+            if (state.timeLimit) {
+                const remaining = state.timeLimit - elapsedSec;
+                if (remaining <= 0) {
+                    document.getElementById('statTime').textContent = '0.0s';
+                    finishRound(document.getElementById('hiddenInput').value, true);
+                    return;
+                }
+                document.getElementById('statTime').textContent = formatSeconds(remaining);
+            } else {
+                document.getElementById('statTime').textContent = elapsedSec.toFixed(1) + 's';
+            }
+
+            const typedLen = document.getElementById('hiddenInput').value.length;
+            const wpm = Math.round((typedLen / 5) / (elapsedSec / 60 || 1));
+            document.getElementById('statWpm').textContent = (isFinite(wpm) ? wpm : 0) + ' WPM';
+
+            if (state.mode === 'bot' && state.botFinishTime) {
+                const botProgress = Math.min(100, (elapsedSec / state.botFinishTime) * 100);
+                document.getElementById('raceBot').style.width = botProgress + '%';
+            }
+        }
+
+        function finishRound(value, timedOut) {
+            if (state.finished) return;
+            state.finished = true;
+            clearInterval(liveTimer);
+            document.getElementById('hiddenInput').readOnly = true;
+
+            const target = state.currentText;
+            const elapsedSec = timedOut ? state.timeLimit : (state.startTime ? (Date.now() - state.startTime) / 1000 : 0);
+            const typedLen = value.length;
+            let correctChars = 0;
+            for (let i = 0; i < typedLen; i++) {
+                if (value[i] === target[i]) correctChars++;
+            }
+            const accuracy = typedLen > 0 ? Math.round((correctChars / typedLen) * 100) : 100;
+            const minutes = elapsedSec > 0 ? (elapsedSec / 60) : (1 / 60);
+            const wpm = Math.max(0, Math.round((correctChars / 5) / minutes));
+            const tier = getTier(wpm);
+            const isPartial = typedLen < target.length;
+            // Điểm tổng = tốc độ × (độ chính xác)² × 10. Bình phương độ chính xác để phạt
+            // nặng lỗi sai — gõ nhanh mà sai nhiều thì điểm vẫn thấp.
+            const score = Math.round(wpm * Math.pow(accuracy / 100, 2) * 10);
+
+            // ---------- PHÁT HIỆN GIAN LẬN ----------
+            const flags = [];
+            if (state.pasteAttempts > 0) flags.push('Dán/kéo-thả văn bản (' + state.pasteAttempts + ' lần)');
+            if (state.maxJump > 8) flags.push('Nhập bất thường (nhảy ' + state.maxJump + ' ký tự/lần)');
+            if (wpm > 200) flags.push('Tốc độ phi thực tế (' + wpm + ' WPM)');
+            // Gõ ra nhiều ký tự hơn hẳn số phím bấm -> nghi tự động điền/script.
+            if (state.keystrokes > 0 && typedLen > state.keystrokes * 1.6 + 8) flags.push('Ký tự nhiều hơn số phím bấm');
+            // Có nội dung nhưng gần như không ghi nhận phím bấm nào -> nghi dán/điền tự động.
+            if (typedLen > 12 && state.keystrokes < 3) flags.push('Không ghi nhận thao tác gõ phím');
+            const suspect = flags.length > 0;
+
+            state.lastResult = { name: state.playerName, wpm, accuracy, score, maxCombo: state.maxCombo, correctChars, wrongChars: typedLen - correctChars, tier: tier.key, tierName: tier.name, suspect, flags, ts: Date.now() };
+
+            document.getElementById('resultTierName').textContent = tier.name;
+            const badge = document.getElementById('resultTierBadge');
+            badge.className = 'result-tier-badge tier-' + tier.key;
+            document.getElementById('resultScore').textContent = score;
+            document.getElementById('resultWpm').textContent = wpm;
+            document.getElementById('resultAcc').textContent = accuracy + '%';
+            document.getElementById('resultCorrectChars').textContent = correctChars;
+            document.getElementById('resultWrongChars').textContent = typedLen - correctChars;
+
+            const partialNote = document.getElementById('resultPartialNote');
+            if (isPartial) {
+                partialNote.style.display = 'block';
+                partialNote.textContent = '⏱ Hết giờ! Bạn gõ được ' + typedLen + '/' + target.length + ' ký tự.';
+            } else {
+                partialNote.style.display = 'none';
+            }
+
+            ['resultRankedPanel', 'resultRoomPanel', 'resultPracticePanel', 'resultBotPanel'].forEach(id => {
+                document.getElementById(id).style.display = 'none';
+            });
+
+            // Phòng thi: bỏ nút "Đấu lại" sau khi thi xong (mỗi máy chỉ thi 1 lần).
+            document.getElementById('resultReplayBtn').style.display = (state.mode === 'room') ? 'none' : 'inline-block';
+
+            if (state.mode === 'ranked') {
+                document.getElementById('resultRankedPanel').style.display = 'block';
+                const saveBtn = document.getElementById('saveBtn');
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Lưu & xem bảng xếp hạng';
+            } else if (state.mode === 'room') {
+                document.getElementById('resultRoomPanel').style.display = 'block';
+                document.getElementById('resultRoomCodeLabel').textContent = state.roomCode;
+                const saveBtn = document.getElementById('saveRoomBtn');
+                saveBtn.style.display = 'none'; // phòng thi: tự động lưu, không cần bấm
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Lưu & xem bảng xếp hạng phòng';
+                startRoomAutoSave();
+            } else if (state.mode === 'practice') {
+                document.getElementById('resultPracticePanel').style.display = 'block';
+            } else if (state.mode === 'bot') {
+                document.getElementById('resultBotPanel').style.display = 'block';
+                const outcomeEl = document.getElementById('botOutcomeText');
+                const detailEl = document.getElementById('botOutcomeDetail');
+                const diff = elapsedSec - state.botFinishTime;
+                if (isPartial && timedOut) {
+                    outcomeEl.textContent = '⏱ HẾT GIỜ!';
+                    outcomeEl.className = 'bot-outcome draw';
+                } else if (Math.abs(diff) < 0.3) {
+                    outcomeEl.textContent = '🤝 HÒA!';
+                    outcomeEl.className = 'bot-outcome draw';
+                } else if (diff < 0) {
+                    outcomeEl.textContent = '🏆 BẠN THẮNG MÁY!';
+                    outcomeEl.className = 'bot-outcome win';
+                } else {
+                    outcomeEl.textContent = '🤖 MÁY THẮNG LẦN NÀY!';
+                    outcomeEl.className = 'bot-outcome lose';
+                }
+                detailEl.textContent = 'Bạn: ' + elapsedSec.toFixed(1) + 's (' + wpm + ' WPM) · Máy (' + state.botTierLabel + '): ' + state.botFinishTime.toFixed(1) + 's (~' + state.botWpm + ' WPM)';
+            }
+
+            setTimeout(() => goTo('result'), 300);
+        }
+
+        // ---------- STORAGE: GLOBAL LEADERBOARD ----------
+        const LB_KEY = 'typing_arena_leaderboard';
+        const ROOM_CAP = 200;
+
+        // Lấy điểm của một kết quả. Kết quả cũ (lưu trước khi có tính năng điểm) chưa
+        // có sẵn score thì tính lại từ WPM và độ chính xác để không bị xếp bét oan.
+        function resultScore(r) {
+            if (typeof r.score === 'number') return r.score;
+            const acc = (typeof r.accuracy === 'number') ? r.accuracy : 100;
+            return Math.round((r.wpm || 0) * Math.pow(acc / 100, 2) * 10);
+        }
+
+        function compareResults(a, b) {
+            const sa = resultScore(a), sb = resultScore(b);
+            if (sb !== sa) return sb - sa; // xếp hạng theo ĐIỂM trước tiên
+            if (b.wpm !== a.wpm) return b.wpm - a.wpm;
+            if (b.accuracy !== a.accuracy) return b.accuracy - a.accuracy;
+            return a.ts - b.ts; // ai hoàn thành trước sẽ được xếp trên khi hoà tuyệt đối
+        }
+
+        function randomSuffix() {
+            return Math.random().toString(36).slice(2, 8);
+        }
+
+        async function saveResult() {
+            const saveBtn = document.getElementById('saveBtn');
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Đang lưu...';
+            try {
+                let list = [];
+                try {
+                    const res = await Store.get(LB_KEY, true);
+                    if (res && res.value) list = JSON.parse(res.value);
+                } catch (err) { list = []; }
+
+                list.push(state.lastResult);
+                list.sort(compareResults);
+                list = list.slice(0, 100);
+
+                await Store.set(LB_KEY, JSON.stringify(list), true);
+                saveBtn.textContent = 'Đã lưu ✓';
+                pendingLbTab = 'global';
+                setTimeout(() => goTo('leaderboard'), 400);
+            } catch (err) {
+                console.error('Storage error:', err);
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Lỗi — thử lại';
+            }
+        }
+
+        async function fetchGlobalLeaderboard() {
+            try {
+                const res = await Store.get(LB_KEY, true);
+                if (res && res.value) return JSON.parse(res.value);
+                return [];
+            } catch (err) { return []; }
+        }
+
+        // ---------- STORAGE: ROOM LEADERBOARD ----------
+        // Mỗi người chơi được lưu vào MỘT key riêng (thay vì gộp chung một mảng) để
+        // tránh mất dữ liệu khi nhiều người trong phòng (tối đa 200) lưu kết quả cùng lúc.
+        let roomAutoSaveTimer = null;
+
+        // Phòng thi: tự động đếm ngược 5s rồi lưu kết quả, không cần bấm nút.
+        function startRoomAutoSave() {
+            if (roomAutoSaveTimer) { clearInterval(roomAutoSaveTimer); roomAutoSaveTimer = null; }
+            const note = document.getElementById('roomAutoSaveNote');
+            note.style.display = 'block';
+            let secs = 5;
+            note.textContent = '⏳ Kết quả sẽ tự động lưu sau ' + secs + 's...';
+            roomAutoSaveTimer = setInterval(() => {
+                secs--;
+                if (secs <= 0) {
+                    clearInterval(roomAutoSaveTimer); roomAutoSaveTimer = null;
+                    saveRoomResult();
+                } else {
+                    note.textContent = '⏳ Kết quả sẽ tự động lưu sau ' + secs + 's...';
+                }
+            }, 1000);
+        }
+
+        async function saveRoomResult() {
+            const saveBtn = document.getElementById('saveRoomBtn');
+            const note = document.getElementById('roomAutoSaveNote');
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Đang lưu...';
+            if (note) note.textContent = '💾 Đang lưu kết quả...';
+            try {
+                const listRes = await Store.list('room_' + state.roomCode + '_r_', true);
+                const existingKeys = (listRes && listRes.keys) ? listRes.keys : [];
+                if (existingKeys.length >= ROOM_CAP) {
+                    if (note) note.textContent = 'Phòng đã đủ 200 người — không lưu thêm được.';
+                    saveBtn.style.display = 'block';
+                    saveBtn.disabled = false;
+                    saveBtn.textContent = 'Phòng đã đủ 200 người';
+                    return;
+                }
+                const key = 'room_' + state.roomCode + '_r_' + Date.now() + '_' + randomSuffix();
+                await Store.set(key, JSON.stringify(state.lastResult), true);
+                if (note) note.textContent = '✓ Đã lưu kết quả!';
+                saveBtn.textContent = 'Đã lưu ✓';
+                pendingLbTab = 'room';
+                setTimeout(() => goTo('leaderboard'), 400);
+            } catch (err) {
+                console.error('Room save error:', err);
+                if (note) note.textContent = '⚠ Lưu lỗi — bấm nút bên dưới để thử lại.';
+                saveBtn.style.display = 'block';
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Lưu lại';
+            }
+        }
+
+        async function fetchRoomResults(code) {
+            try {
+                const listRes = await Store.list('room_' + code + '_r_', true);
+                const keys = (listRes && listRes.keys) ? listRes.keys : [];
+                const results = await Promise.all(keys.map(async (k) => {
+                    try {
+                        const res = await Store.get(k, true);
+                        if (!res || !res.value) return null;
+                        const parsed = JSON.parse(res.value);
+                        parsed._key = k; // giữ key lưu trữ để có thể xóa mục này
+                        return parsed;
+                    } catch (err) { return null; }
+                }));
+                return results.filter(Boolean).sort(compareResults);
+            } catch (err) { return []; }
+        }
+
+        // ---------- LEADERBOARD RENDER ----------
+        function switchLbTab(tab) {
+            document.getElementById('tabGlobal').classList.toggle('active', tab === 'global');
+            document.getElementById('tabRoom').classList.toggle('active', tab === 'room');
+            if (tab === 'global') loadGlobalLeaderboardView();
+            else loadRoomLeaderboardView();
+        }
+
+        // Định dạng thời điểm lưu kết quả (ts) thành chuỗi ngày/giờ ngắn gọn.
+        function formatResultTime(ts) {
+            if (typeof ts !== 'number' || !isFinite(ts)) return '—';
+            const d = new Date(ts);
+            const pad = n => String(n).padStart(2, '0');
+            return pad(d.getDate()) + '/' + pad(d.getMonth() + 1) + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+        }
+
+        function renderLbRows(list, opts) {
+            const scope = opts && opts.deletable ? opts.scope : null; // 'room' | 'global'
+            const medals = ['🥇', '🥈', '🥉'];
+            let html = '<div class="lb-list">';
+            list.forEach((r, i) => {
+                let actionsHtml = '';
+                if (scope === 'room' && r._key) {
+                    actionsHtml = `<div class="lb-actions">
+        <button class="lb-edit-btn" title="Sửa mục này" onclick="openLbEditModal('room', '${r._key}', event)">✏</button>
+        <button class="lb-del-btn" title="Xóa mục này" onclick="deleteRoomResult('${r._key}', event)">🗑</button>
+      </div>`;
+                } else if (scope === 'global' && typeof r.ts === 'number') {
+                    actionsHtml = `<div class="lb-actions">
+        <button class="lb-edit-btn" title="Sửa mục này" onclick="openLbEditModal('global', ${r.ts}, event)">✏</button>
+        <button class="lb-del-btn" title="Xóa mục này" onclick="deleteGlobalResult(${r.ts}, event)">🗑</button>
+      </div>`;
+                }
+                const deletable = !!actionsHtml;
+                const rankClass = i === 0 ? 'top1' : i === 1 ? 'top2' : i === 2 ? 'top3' : '';
+                const isMe = state.lastResult && r.name === state.lastResult.name && r.ts === state.lastResult.ts;
+                const correct = (typeof r.correctChars === 'number') ? r.correctChars : '—';
+                const wrong = (typeof r.wrongChars === 'number') ? r.wrongChars : '—';
+                const combo = (typeof r.maxCombo === 'number') ? r.maxCombo : '—';
+                const suspectBadge = r.suspect ? ' <span style="font-size:11px;color:#ffb3c0;background:#3a1214;border:1px solid var(--magenta);padding:2px 7px;border-radius:6px;font-weight:700;vertical-align:middle;">⚠ NGHI VẤN</span>' : '';
+                const suspectBox = r.suspect ? `<div style="margin-top:10px;padding:8px 10px;background:#3a1214;border:1px solid var(--magenta);border-radius:8px;color:#ffb3c0;font-size:12px;font-weight:600;">⚠ Nghi vấn gian lận: ${escapeHtml((r.flags || []).join(', '))}</div>` : '';
+                html += `<div class="lb-card ${rankClass} ${isMe ? 'me' : ''} ${deletable ? 'has-del' : ''}" ${r.suspect ? 'style="border-color:var(--magenta)"' : ''}>
+      ${actionsHtml}
+      <div class="lb-head">
+        <div class="lb-rank ${i < 3 ? 'medal' : ''}">${i < 3 ? medals[i] : (i + 1)}</div>
+        <div class="lb-name">${escapeHtml(r.name)}${suspectBadge}</div>
+        <div class="tier-badge tier-${r.tier}">${r.tierName}</div>
+        <div class="lb-wpm">${resultScore(r)}<span>ĐIỂM</span></div>
+      </div>
+      <div class="lb-detail">
+        <div><b style="color:var(--lime)">${r.wpm}</b><span>WPM</span></div>
+        <div><b style="color:var(--cyan)">${r.accuracy}%</b><span>Chính xác</span></div>
+        <div><b style="color:var(--lime)">${correct}</b><span>Ký tự đúng</span></div>
+        <div><b style="color:var(--magenta)">${wrong}</b><span>Ký tự sai</span></div>
+        <div><b style="color:var(--gold)">${combo}</b><span>Combo</span></div>
+        <div><b style="color:var(--text-dim);font-size:13px;">${formatResultTime(r.ts)}</b><span>Thời gian</span></div>
+      </div>
+      ${suspectBox}
+    </div>`;
+            });
+            html += '</div>';
+            return html;
+        }
+
+        let currentGlobalList = [];
+        let currentRoomList = [];
+
+        async function loadGlobalLeaderboardView() {
+            const container = document.getElementById('lbContent');
+            container.innerHTML = '<div class="loading-note">Đang tải bảng xếp hạng...</div>';
+            const list = await fetchGlobalLeaderboard();
+            currentGlobalList = list;
+            document.getElementById('navLiveCount').textContent = list.length + ' chiến binh';
+            const addBtn = `<button class="lb-add-btn" onclick="openLbAddModal('global')">➕ Thêm dữ liệu</button>`;
+            if (list.length === 0) {
+                container.innerHTML = addBtn + '<div class="empty-lb">Chưa có ai lưu kết quả. Hãy là người đầu tiên chinh phục bảng xếp hạng!</div>';
+                return;
+            }
+            container.innerHTML = addBtn + renderLbRows(list, { deletable: true, scope: 'global' });
+        }
+
+        async function loadRoomLeaderboardView() {
+            const container = document.getElementById('lbContent');
+            container.innerHTML = '<div class="loading-note">Đang tải bảng xếp hạng phòng...</div>';
+            const rc = effectiveRoomCode();
+            if (!rc) {
+                container.innerHTML = '<div class="empty-lb">Bạn chưa tham gia phòng nào trong phiên này.</div>';
+                return;
+            }
+            const results = await fetchRoomResults(rc);
+            currentRoomList = results;
+            const suspects = results.filter(r => r.suspect).length;
+            const suspectTag = suspects > 0 ? ` · <b style="color:var(--magenta)">⚠ ${suspects} nghi vấn</b>` : '';
+            const codeNote = `<div class="room-code-hint">Mã phòng: <b>${rc}</b> — ${results.length}/${ROOM_CAP} người đã hoàn thành${suspectTag}</div>`;
+            const addBtn = `<button class="lb-add-btn" onclick="openLbAddModal('room')">➕ Thêm dữ liệu</button>`;
+            if (results.length === 0) {
+                container.innerHTML = codeNote + addBtn + '<div class="empty-lb">Chưa có ai lưu kết quả trong phòng này.</div>';
+                return;
+            }
+            container.innerHTML = codeNote + addBtn + renderLbRows(results, { deletable: true, scope: 'room' });
+        }
+
+        // Xóa một kết quả khỏi bảng xếp hạng toàn cầu theo mốc thời gian (ts), rồi tải lại.
+        async function deleteGlobalResult(ts, ev) {
+            if (ev) ev.stopPropagation();
+            if (typeof ts !== 'number') return;
+            if (!confirm('Xóa mục này khỏi bảng xếp hạng toàn cầu?')) return;
+            const btn = ev && ev.target ? ev.target : null;
+            if (btn) { btn.disabled = true; btn.textContent = '…'; }
+            try {
+                let list = [];
+                try {
+                    const res = await Store.get(LB_KEY, true);
+                    if (res && res.value) list = JSON.parse(res.value);
+                } catch (err) { list = []; }
+                list = list.filter(r => r.ts !== ts);
+                await Store.set(LB_KEY, JSON.stringify(list), true);
+                loadGlobalLeaderboardView();
+            } catch (err) {
+                console.error('Delete global result error:', err);
+                if (btn) { btn.disabled = false; btn.textContent = '🗑'; }
+                alert('Không xóa được mục này — thử lại nhé.');
+            }
+        }
+
+        // Xóa một kết quả khỏi bảng xếp hạng phòng theo key lưu trữ, rồi tải lại danh sách.
+        async function deleteRoomResult(key, ev) {
+            if (ev) ev.stopPropagation();
+            if (!key) return;
+            if (!confirm('Xóa mục này khỏi bảng xếp hạng phòng?')) return;
+            const btn = ev && ev.target ? ev.target : null;
+            if (btn) { btn.disabled = true; btn.textContent = '…'; }
+            try {
+                await Store.delete(key, true);
+                loadRoomLeaderboardView();
+            } catch (err) {
+                console.error('Delete room result error:', err);
+                if (btn) { btn.disabled = false; btn.textContent = '🗑'; }
+                alert('Không xóa được mục này — thử lại nhé.');
+            }
+        }
+
+        // ---------- MODAL SỬA / THÊM DỮ LIỆU ----------
+        // Ngữ cảnh của modal đang mở: scope ('global'|'room'), mode ('add'|'edit'),
+        // và định danh mục đang sửa (ts cho toàn cầu, key cho phòng).
+        let lbModalCtx = { scope: 'global', mode: 'add', ts: null, key: null };
+
+        function openLbModal() { document.getElementById('lbModal').classList.add('show'); }
+        function closeLbModal() { document.getElementById('lbModal').classList.remove('show'); }
+
+        function fillLbModal(r) {
+            document.getElementById('lbEditName').value = r ? (r.name || '') : '';
+            document.getElementById('lbEditWpm').value = r ? (r.wpm != null ? r.wpm : '') : '';
+            document.getElementById('lbEditAcc').value = r ? (r.accuracy != null ? r.accuracy : '') : '';
+            document.getElementById('lbEditCorrect').value = r ? (r.correctChars != null ? r.correctChars : '') : '';
+            document.getElementById('lbEditWrong').value = r ? (r.wrongChars != null ? r.wrongChars : '') : '';
+            document.getElementById('lbEditCombo').value = r ? (r.maxCombo != null ? r.maxCombo : '') : '';
+        }
+
+        function openLbAddModal(scope) {
+            if (scope === 'room' && !effectiveRoomCode()) { alert('Chưa có phòng nào để thêm dữ liệu.'); return; }
+            lbModalCtx = { scope, mode: 'add', ts: null, key: null };
+            document.getElementById('lbModalTitle').textContent = scope === 'room' ? 'Thêm dữ liệu vào phòng' : 'Thêm dữ liệu toàn cầu';
+            fillLbModal(null);
+            openLbModal();
+            setTimeout(() => document.getElementById('lbEditName').focus(), 50);
+        }
+
+        function openLbEditModal(scope, id, ev) {
+            if (ev) ev.stopPropagation();
+            let rec = null;
+            if (scope === 'room') rec = currentRoomList.find(r => r._key === id);
+            else rec = currentGlobalList.find(r => r.ts === id);
+            if (!rec) { alert('Không tìm thấy mục để sửa.'); return; }
+            lbModalCtx = { scope, mode: 'edit', ts: scope === 'global' ? id : null, key: scope === 'room' ? id : null };
+            document.getElementById('lbModalTitle').textContent = 'Sửa dữ liệu';
+            fillLbModal(rec);
+            openLbModal();
+            setTimeout(() => document.getElementById('lbEditName').focus(), 50);
+        }
+
+        // Dựng một bản ghi kết quả từ dữ liệu nhập, tự tính điểm và bậc (rank).
+        function buildResultFromModal(base) {
+            const name = document.getElementById('lbEditName').value.trim();
+            const wpm = Math.max(0, Math.round(parseFloat(document.getElementById('lbEditWpm').value) || 0));
+            let accuracy = Math.round(parseFloat(document.getElementById('lbEditAcc').value));
+            if (isNaN(accuracy)) accuracy = 100;
+            accuracy = Math.min(100, Math.max(0, accuracy));
+            const correctChars = Math.max(0, Math.round(parseFloat(document.getElementById('lbEditCorrect').value) || 0));
+            const wrongChars = Math.max(0, Math.round(parseFloat(document.getElementById('lbEditWrong').value) || 0));
+            const maxCombo = Math.max(0, Math.round(parseFloat(document.getElementById('lbEditCombo').value) || 0));
+            if (!name) return null;
+            const tier = getTier(wpm);
+            const score = Math.round(wpm * Math.pow(accuracy / 100, 2) * 10);
+            const rec = Object.assign({}, base || {}, {
+                name, wpm, accuracy, correctChars, wrongChars, maxCombo,
+                score, tier: tier.key, tierName: tier.name,
+                suspect: (base && base.suspect) || false,
+                flags: (base && base.flags) || []
+            });
+            return rec;
+        }
+
+        async function submitLbModal() {
+            const saveBtn = document.getElementById('lbModalSaveBtn');
+            const { scope, mode, ts, key } = lbModalCtx;
+
+            let base = null;
+            if (mode === 'edit') {
+                base = scope === 'room' ? currentRoomList.find(r => r._key === key) : currentGlobalList.find(r => r.ts === ts);
+            }
+            const rec = buildResultFromModal(base);
+            if (!rec) { alert('Vui lòng nhập tên hiển thị.'); return; }
+
+            saveBtn.disabled = true;
+            saveBtn.textContent = 'Đang lưu...';
+            try {
+                if (scope === 'global') {
+                    let list = [];
+                    try {
+                        const res = await Store.get(LB_KEY, true);
+                        if (res && res.value) list = JSON.parse(res.value);
+                    } catch (err) { list = []; }
+                    if (mode === 'edit') {
+                        const idx = list.findIndex(r => r.ts === ts);
+                        if (idx >= 0) list[idx] = Object.assign(list[idx], rec);
+                        else { rec.ts = Date.now(); list.push(rec); }
+                    } else {
+                        rec.ts = Date.now();
+                        list.push(rec);
+                    }
+                    list.sort(compareResults);
+                    list = list.slice(0, 100);
+                    await Store.set(LB_KEY, JSON.stringify(list), true);
+                    closeLbModal();
+                    loadGlobalLeaderboardView();
+                } else {
+                    const rc = effectiveRoomCode();
+                    if (mode === 'edit') {
+                        delete rec._key;
+                        if (!rec.ts && base && base.ts) rec.ts = base.ts;
+                        await Store.set(key, JSON.stringify(rec), true);
+                    } else {
+                        rec.ts = Date.now();
+                        const newKey = 'room_' + rc + '_r_' + Date.now() + '_' + randomSuffix();
+                        await Store.set(newKey, JSON.stringify(rec), true);
+                    }
+                    closeLbModal();
+                    loadRoomLeaderboardView();
+                }
+            } catch (err) {
+                console.error('Save lb data error:', err);
+                alert('Lưu không thành công — thử lại nhé.');
+            } finally {
+                saveBtn.disabled = false;
+                saveBtn.textContent = 'Lưu';
+            }
+        }
+
+        // Bấm ra ngoài hộp để đóng modal.
+        document.getElementById('lbModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('lbModal')) closeLbModal();
+        });
+        document.getElementById('roomListModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('roomListModal')) closeRoomListModal();
+        });
+
+        async function loadMiniLeaderboard() {
+            const container = document.getElementById('miniLeaderboard');
+            const list = await fetchGlobalLeaderboard();
+            document.getElementById('navLiveCount').textContent = list.length + ' chiến binh';
+            if (list.length === 0) {
+                container.innerHTML = '<div class="empty-note">Chưa có ai thi đấu. Hãy vào trận đầu tiên!</div>';
+                return;
+            }
+            const top5 = list.slice(0, 5);
+            let html = '';
+            top5.forEach((r, i) => {
+                html += `<div class="mini-lb-row">
+      <div class="mini-rank">${i + 1}</div>
+      <div class="mini-name">${escapeHtml(r.name)}</div>
+      <div class="mini-wpm">${resultScore(r)} điểm</div>
+    </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        document.getElementById('playerNameInput').addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') beginSelectedMode();
+        });
+
+        loadMiniLeaderboard();
+
+        // Deep-link: nếu URL có ?room=<MÃ> thì mở thẳng bảng xếp hạng của phòng đó
+        // (dùng cho tab mới khi bấm "Xem BXH" trong danh sách phòng).
+        (function handleRoomDeepLink() {
+            try {
+                const params = new URLSearchParams(location.search);
+                const room = params.get('room');
+                if (room && room.trim()) {
+                    viewRoomRank(room.trim().toUpperCase());
+                }
+            } catch (err) { }
+        })();

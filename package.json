@@ -1,0 +1,14 @@
+{
+  "name": "typer-checker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sprint Typing - trang luyện gõ phím",
+  "scripts": {
+    "build": "terser js/app.js -o js/app.min.js --compress --mangle --keep-fnames --comments false",
+    "watch": "terser js/app.js -o js/app.min.js --compress --mangle --keep-fnames --comments false --source-map",
+    "dev": "terser js/app.js -o js/app.min.js --comments false"
+  },
+  "devDependencies": {
+    "terser": "^5.31.0"
+  }
+}
