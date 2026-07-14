@@ -1385,12 +1385,14 @@
                         <button class="nav-btn" onclick="viewRoomRank('EGHJB')">D1 (EGHJB)</button>
                         <button class="nav-btn" onclick="viewRoomRank('NUTCE')">D2(NUTCE)</button>
                         <button class="nav-btn" onclick="viewRoomRank('TKEGJ')">D3(TKEGJ)</button>
+                        <button class="nav-btn" onclick="viewRoomRank('AUMKX')">D4(AUMKX)</button>
                     </div>
                     <!-- <div class="hero-title">CHỌN CÁCH BẠN MUỐN THI ĐẤU</div>
                     <p class="hero-sub">Luyện tay không áp lực, leo hạng toàn cầu, đấu riêng với hội bạn qua mã phòng,
                         hoặc so tốc độ trực tiếp với máy. Tất cả trong một sân đấu.</p> -->
 
-                    <div class="panel">
+                    <!-- remove style display:none; -->
+                    <div class="panel" style="display: none;">
                         <div class="name-form">
                             <label>Tên hiển thị của bạn</label>
                             <input type="text" id="playerNameInput" maxlength="18" placeholder="VD: Rồng Lửa">
@@ -1411,25 +1413,25 @@
                                 <div class="mode-card-desc">Gõ đoạn văn ngẫu nhiên, so tài với toàn bộ người chơi trên
                                     bảng xếp hạng chung.</div>
                             </button>
-                            <!-- <button type="button" class="mode-card" data-mode="practice"
+                            <button type="button" class="mode-card" data-mode="practice"
                                 onclick="selectMode('practice')">
                                 <span class="mode-card-icon">🧘</span>
                                 <div class="mode-card-title">LUYỆN TẬP</div>
                                 <div class="mode-card-desc">Không tính giờ áp lực, không lưu điểm. Có thể dùng văn bản
                                     của riêng bạn.</div>
-                            </button> -->
+                            </button>
                             <button type="button" class="mode-card" data-mode="room" onclick="selectMode('room')">
                                 <span class="mode-card-icon">🚪</span>
                                 <div class="mode-card-title">TẠO / VÀO PHÒNG</div>
                                 <div class="mode-card-desc">Tạo phòng riêng cho nhóm bạn, hoặc vào phòng có sẵn bằng mã.
                                 </div>
                             </button>
-                            <!-- <button type="button" class="mode-card" data-mode="bot" onclick="selectMode('bot')">
+                            <button type="button" class="mode-card" data-mode="bot" onclick="selectMode('bot')">
                                 <span class="mode-card-icon">🤖</span>
                                 <div class="mode-card-title">ĐẤU VỚI MÁY</div>
                                 <div class="mode-card-desc">Chọn độ khó và đua tốc độ trực tiếp với bot — ai về đích
                                     trước sẽ thắng.</div>
-                            </button> -->
+                            </button>
                         </div>
 
                         <!-- RANKED CONFIG -->
@@ -1512,7 +1514,8 @@
                         <button class="btn-primary" id="startBtn" onclick="beginSelectedMode()">Bắt đầu</button>
                     </div>
                 </div>
-                <div class="panel">
+                <!-- remove style display:none; -->
+                <div class="panel" style="display: none;">
                     <div class="mini-lb-title">🏆 Top hiện tại (toàn cầu)</div>
                     <div id="miniLeaderboard">
                         <div class="empty-note">Đang tải...</div>
@@ -1680,6 +1683,7 @@
 
         <!-- LEADERBOARD -->
         <section class="screen" id="screen-leaderboard">
+            <!-- remove style display:none; -->
             <div class="lb-header">
                 <div class="lb-title">🏆 Bảng Xếp Hạng</div>
                 <button class="btn-ghost" onclick="goTo('home')">← Về sân đấu</button>
@@ -1745,8 +1749,8 @@
         </div>
     </div>
 
-    <footer>Dữ liệu bảng xếp hạng (toàn cầu và phòng) được lưu chung và hiển thị công khai cho tất cả người chơi khác.
-    </footer>
+    <!-- <footer>Dữ liệu bảng xếp hạng (toàn cầu và phòng) được lưu chung và hiển thị công khai cho tất cả người chơi khác.
+    </footer> -->
 
     <script>
         const TEXTS = [
